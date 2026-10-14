@@ -85,7 +85,7 @@ export const MyPinsView = ({
           }
         `}>
           <p className="text-xs font-normal opacity-70 mb-3">
-            {titleQuery ? `No pins matching "${titleQuery}".` : 'No pins created yet.'}
+            {titleQuery ? `No pins matching "${titleQuery}".` : "You haven't created any pins yet."}
           </p>
           {titleQuery ? (
             <Button variant="white" size="sm" onClick={() => setTitleQuery('')}>

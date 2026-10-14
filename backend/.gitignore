@@ -15,4 +15,5 @@ dist/
 
 # Uploaded media and local SQLite database (user data)
 /uploads/
+/test_uploads/
 *.db
