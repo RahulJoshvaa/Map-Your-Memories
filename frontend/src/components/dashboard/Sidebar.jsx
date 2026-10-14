@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Logo } from '../Logo';
 import { useTheme } from '../../context/ThemeContext';
-import { CURRENT_USER } from '../../data/mockMemories';
+import { authService } from '../../services/auth/authService';
 
 export const Sidebar = ({
   activeTab = 'home',
@@ -25,10 +25,12 @@ export const Sidebar = ({
   isOpen = false,
   onClose,
   counts = {},
+  user = null,
 }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const activeUser = user || authService.getCachedUser() || { name: 'Explorer', email: '' };
 
   const navItems = [
     {
@@ -41,19 +43,19 @@ export const Sidebar = ({
       id: 'mypins',
       label: 'My Pins',
       icon: MapPin,
-      badge: counts.myPins ?? 6,
+      badge: counts.myPins ?? 0,
     },
     {
       id: 'shared',
       label: 'Shared With Me',
       icon: Users,
-      badge: counts.shared ?? 5,
+      badge: counts.shared ?? 0,
     },
     {
       id: 'favorites',
       label: 'Favorites',
       icon: Star,
-      badge: counts.favorites ?? 5,
+      badge: counts.favorites ?? 0,
     },
     {
       id: 'recent',
@@ -211,15 +213,15 @@ export const Sidebar = ({
           `}>
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-7 h-7 rounded-lg bg-[#02a896] border border-[#1a2c35] flex items-center justify-center text-xs font-bold text-white shrink-0">
-                {CURRENT_USER.name.charAt(0)}
+                {(activeUser.name || 'E').charAt(0).toUpperCase()}
               </div>
               {!isCollapsed && (
                 <div className="min-w-0">
                   <div className="font-semibold text-xs truncate leading-tight text-[#1a2c35] dark:text-white">
-                    {CURRENT_USER.name}
+                    {activeUser.name}
                   </div>
                   <div className="text-[10px] opacity-60 truncate">
-                    {CURRENT_USER.handle}
+                    {activeUser.email}
                   </div>
                 </div>
               )}
