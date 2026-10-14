@@ -1,3 +1,4 @@
+@"
 # Python virtual environments
 /venv/
 .venv/
@@ -12,8 +13,4 @@ __pycache__/
 # Frontend dependencies and build output
 node_modules/
 dist/
-
-# Local SQLite database and uploaded media (user data)
-*.db
-/uploads/
-/test_uploads/
+"@ | Set-Content .gitignore
