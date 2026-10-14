@@ -4,6 +4,7 @@ Pydantic schemas for authentication.
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 from datetime import datetime
+from app.schemas.types import UTCDateTime
 import uuid
 
 
@@ -48,8 +49,8 @@ class UserResponse(BaseModel):
     name: str
     email: str
     profile_image: Optional[str] = None
-    created_at: datetime
-    last_login_at: Optional[datetime] = None
+    created_at: UTCDateTime
+    last_login_at: Optional[UTCDateTime] = None
 
     model_config = {"from_attributes": True}
 

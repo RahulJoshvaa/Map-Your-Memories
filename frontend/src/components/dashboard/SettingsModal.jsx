@@ -7,15 +7,16 @@ import {
 } from 'lucide-react';
 import { Button } from '../Button';
 import { useTheme } from '../../context/ThemeContext';
-import { CURRENT_USER } from '../../data/mockMemories';
+import { authService } from '../../services/auth/authService';
 
 export const SettingsModal = ({
   isOpen,
   onClose,
-  onResetData,
+  user = null,
 }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  const activeUser = user || authService.getCachedUser() || { name: 'Explorer', email: '' };
 
   const [mapboxToken, setMapboxToken] = useState(
     localStorage.getItem('mym_mapbox_token') || ''
@@ -93,14 +94,14 @@ export const SettingsModal = ({
             ${isDark ? 'bg-[#0a2327]' : 'bg-[#faf6ee]'}
           `}>
             <div className="w-9 h-9 rounded-lg bg-[#02a896] border border-[#1a2c35] flex items-center justify-center text-xs font-bold text-white shrink-0">
-              {CURRENT_USER.name.charAt(0)}
+              {(activeUser.name || 'E').charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-xs text-[#1a2c35] dark:text-white">
-                {CURRENT_USER.name}
+                {activeUser.name}
               </div>
               <div className="text-[11px] opacity-60 truncate">
-                {CURRENT_USER.email}
+                {activeUser.email}
               </div>
             </div>
           </div>
@@ -130,23 +131,6 @@ export const SettingsModal = ({
               Save Token
             </Button>
           </form>
-
-          {/* Reset Mock Data */}
-          <div className="pt-2 border-t border-[#1a2c35]/15 dark:border-[#1a2c35]">
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm('Reset all memory pins back to the default dataset?')) {
-                  onResetData();
-                  onClose();
-                }
-              }}
-              className="w-full py-2 px-3 rounded-xl border border-[#1a2c35] btn-3d-white text-xs font-medium flex items-center justify-center gap-2 cursor-pointer text-rose-600 dark:text-rose-400"
-            >
-              <RotateCcw className="w-3.5 h-3.5 stroke-2" />
-              <span>Reset Mock Dataset</span>
-            </button>
-          </div>
         </div>
       </div>
     </div>

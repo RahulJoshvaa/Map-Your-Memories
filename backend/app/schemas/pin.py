@@ -1,9 +1,10 @@
-﻿"""
+"""
 Pydantic schemas for memory pins.
 """
 from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from datetime import datetime
+from app.schemas.types import UTCDateTime
 import uuid
 
 
@@ -49,6 +50,8 @@ class PinUpdateRequest(BaseModel):
     tags: Optional[str] = None
 
 
+from pydantic import BaseModel, field_validator, computed_field
+
 class MediaSummary(BaseModel):
     id: uuid.UUID
     file_name: str
@@ -56,9 +59,38 @@ class MediaSummary(BaseModel):
     mime_type: str
     file_size: int
     file_path: str
-    created_at: datetime
+    created_at: UTCDateTime
+
+    @computed_field
+    @property
+    def url(self) -> str:
+        return f"/uploads/{self.file_path}"
 
     model_config = {"from_attributes": True}
+
+
+class CollaboratorUser(BaseModel):
+    id: uuid.UUID
+    name: str
+    email: str
+
+    model_config = {"from_attributes": True}
+
+
+class CollaboratorResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    role: str
+    status: str = "accepted"
+    created_at: UTCDateTime
+    user: CollaboratorUser
+
+    model_config = {"from_attributes": True}
+
+
+class CollaboratorAddRequest(BaseModel):
+    email: str
+    role: Optional[str] = "Editor"
 
 
 class PinResponse(BaseModel):
@@ -72,9 +104,12 @@ class PinResponse(BaseModel):
     event_date: Optional[str] = None
     visibility: str
     tags: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
     media: List[MediaSummary] = []
+    collaborators: List[CollaboratorResponse] = []
+    owner: Optional[CollaboratorUser] = None
+    permission: Optional[str] = "OWNER"
 
     model_config = {"from_attributes": True}
 
@@ -82,3 +117,4 @@ class PinResponse(BaseModel):
 class PinListResponse(BaseModel):
     pins: List[PinResponse]
     total: int
+

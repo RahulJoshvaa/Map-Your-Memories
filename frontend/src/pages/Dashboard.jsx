@@ -10,18 +10,19 @@ import { MemoryDetailPage } from './MemoryDetailPage';
 import { CreateMemoryModal } from '../components/dashboard/CreateMemoryModal';
 import { SettingsModal } from '../components/dashboard/SettingsModal';
 import { useTheme } from '../context/ThemeContext';
+import { MapPin, Check } from 'lucide-react';
 import { 
   fetchMemories, 
   filterMemoriesByQuery, 
   createMemory, 
   toggleFavoriteMemory, 
-  resetMemoriesToDefault,
+  fetchPinById,
   getMyPins,
   getSharedWithMe,
   getFavoriteMemories
 } from '../services/memoryService';
 
-export const Dashboard = ({ onSignOut }) => {
+export const Dashboard = ({ currentUser, onSignOut }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -46,6 +47,8 @@ export const Dashboard = ({ onSignOut }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPickingLocationOnMap, setIsPickingLocationOnMap] = useState(false);
   const [pickedLocation, setPickedLocation] = useState(null);
+  const [pendingLocationPrompt, setPendingLocationPrompt] = useState(null);
+  const [promptLocationName, setPromptLocationName] = useState('');
 
   // Initial load
   const loadData = useCallback(async () => {
@@ -133,14 +136,32 @@ export const Dashboard = ({ onSignOut }) => {
     await loadData();
     setIsPickingLocationOnMap(false);
     setPickedLocation(null);
-    handleLocateOnMap(created);
+    if (created) {
+      handleLocateOnMap(created);
+    }
   };
 
-  const handleResetData = () => {
-    const fresh = resetMemoriesToDefault();
-    setMemories(fresh);
+  const handlePinDeleted = async (pinId) => {
+    setMemories((prev) => prev.filter((m) => m.id !== pinId));
     setSelectedMemory(null);
     setSelectedCluster(null);
+    setDetailMemory(null);
+    setActiveTab(previousTab || 'home');
+    await loadData();
+  };
+
+  const handlePinUpdated = async (pinId) => {
+    try {
+      const refreshed = await fetchPinById(pinId);
+      if (refreshed) {
+        setMemories((prev) => prev.map((m) => (m.id === pinId ? refreshed : m)));
+        if (detailMemory && detailMemory.id === pinId) {
+          setDetailMemory(refreshed);
+        }
+      }
+    } catch {
+      await loadData();
+    }
   };
 
   // Location Picker Flow: User clicks "Select on Map" in Create Pin modal
@@ -150,10 +171,22 @@ export const Dashboard = ({ onSignOut }) => {
     setIsPickingLocationOnMap(true);
   };
 
-  // User clicked on map -> capture coords and reopen modal
+  // User clicked on map -> prompt for location name before returning to CreatePinModal
   const handleLocationPicked = (coords) => {
-    setPickedLocation(coords);
     setIsPickingLocationOnMap(false);
+    setPendingLocationPrompt(coords);
+    setPromptLocationName('');
+  };
+
+  const handleConfirmLocationName = (e) => {
+    e.preventDefault();
+    if (!pendingLocationPrompt) return;
+    const finalLocation = {
+      ...pendingLocationPrompt,
+      name: promptLocationName.trim() || `Location (${pendingLocationPrompt.lat}, ${pendingLocationPrompt.lng})`,
+    };
+    setPickedLocation(finalLocation);
+    setPendingLocationPrompt(null);
     setIsCreateOpen(true);
   };
 
@@ -183,6 +216,7 @@ export const Dashboard = ({ onSignOut }) => {
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         counts={counts}
+        user={currentUser}
       />
 
       {/* Main Content Area: TopBar + Page Body */}
@@ -195,6 +229,8 @@ export const Dashboard = ({ onSignOut }) => {
           onQuickResultSelect={handleQuickResultSelect}
           searchResults={searchResults}
           activeTab={activeTab}
+          user={currentUser}
+          onInviteResponded={loadData}
         />
 
         {/* 3. DYNAMIC CONTENT SECTION */}
@@ -267,6 +303,8 @@ export const Dashboard = ({ onSignOut }) => {
               onBack={() => setActiveTab(previousTab || 'home')}
               onLocateOnMap={handleLocateOnMap}
               onToggleFavorite={handleToggleFavorite}
+              onPinDeleted={handlePinDeleted}
+              onPinUpdated={handlePinUpdated}
             />
           )}
         </main>
@@ -289,8 +327,86 @@ export const Dashboard = ({ onSignOut }) => {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        onResetData={handleResetData}
+        user={currentUser}
       />
+
+      {/* Prompt Dialog: Ask for Location Name immediately after selecting on map */}
+      {pendingLocationPrompt && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#062024]/75 backdrop-blur-xs animate-fadeIn select-none"
+          onClick={() => {
+            handleConfirmLocationName({ preventDefault: () => {} });
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-md rounded-2xl border-3 border-[#1a2c35] p-5 sm:p-6 transition-all
+              ${
+                isDark
+                  ? 'bg-[#0d292e] text-white shadow-[0_8px_0_0_#041a1d,0_8px_0_3px_#1a2c35]'
+                  : 'bg-white text-[#1a2c35] shadow-[0_8px_0_0_#a35d10,0_8px_0_3px_#1a2c35]'
+              }
+            `}
+          >
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-8 h-8 rounded-xl bg-[#02a896] text-white border-2 border-[#1a2c35] flex items-center justify-center">
+                <MapPin className="w-4 h-4 fill-current" />
+              </div>
+              <h3 className="text-lg font-black font-chunky uppercase tracking-tight">
+                Name This Location
+              </h3>
+            </div>
+
+            <p className="text-xs opacity-70 mb-4">
+              Enter a recognizable landmark or location name for coordinates{' '}
+              <span className="font-mono font-bold">
+                ({pendingLocationPrompt.lat}, {pendingLocationPrompt.lng})
+              </span>
+            </p>
+
+            <form onSubmit={handleConfirmLocationName} className="space-y-4">
+              <div>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="e.g. Fort Kochi Promenade, Ooty Tea Garden"
+                  value={promptLocationName}
+                  onChange={(e) => setPromptLocationName(e.target.value)}
+                  className={`w-full py-2.5 px-3 rounded-xl border-2 border-[#1a2c35] font-medium text-xs sm:text-sm outline-none transition-all
+                    ${
+                      isDark
+                        ? 'bg-[#0a2327] text-white focus:border-[#ffb72b]'
+                        : 'bg-[#faf8f5] text-[#1a2c35] focus:border-[#02a896]'
+                    }
+                  `}
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingLocationPrompt(null);
+                    setIsCreateOpen(true);
+                  }}
+                  className="px-4 py-2 rounded-xl border-2 border-[#1a2c35] text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-[#0a2327] cursor-pointer"
+                >
+                  Skip
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl btn-3d-yellow text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-4 h-4 stroke-2.5" />
+                  <span>Set Location Name</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

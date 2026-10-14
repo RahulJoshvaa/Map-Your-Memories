@@ -1,4 +1,4 @@
-﻿"""
+"""
 Media service: file upload, retrieval, and deletion.
 """
 import uuid as uuid_mod
@@ -50,11 +50,21 @@ FILE_TYPE_MAP = {
 MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024  # 100 MB
 
 
-def _assert_pin_owner(pin_id: uuid_mod.UUID, owner: User, db: Session) -> MemoryPin:
-    """Ensure the pin exists and belongs to owner."""
+from sqlalchemy import or_, and_
+from app.database.models.collaborator import PinCollaborator
+
+def _assert_pin_access(pin_id: uuid_mod.UUID, user: User, db: Session) -> MemoryPin:
+    """Ensure the pin exists and user is owner or collaborator."""
     pin = (
         db.query(MemoryPin)
-        .filter(MemoryPin.id == pin_id, MemoryPin.owner_id == owner.id)
+        .outerjoin(PinCollaborator, MemoryPin.id == PinCollaborator.pin_id)
+        .filter(
+            MemoryPin.id == pin_id,
+            or_(
+                MemoryPin.owner_id == user.id,
+                and_(PinCollaborator.user_id == user.id, PinCollaborator.status == "accepted"),
+            ),
+        )
         .first()
     )
     if not pin:
@@ -69,8 +79,8 @@ def upload_media(
     db: Session,
     storage: StorageService,
 ) -> Media:
-    """Upload a file to a pin owned by the current user."""
-    _assert_pin_owner(pin_id, owner, db)
+    """Upload a file to a pin accessible to the current user."""
+    _assert_pin_access(pin_id, owner, db)
 
     # Validate MIME type
     mime = upload_file.content_type or ""
@@ -118,8 +128,8 @@ def get_pin_media(
     owner: User,
     db: Session,
 ) -> List[Media]:
-    """Return all media for a pin owned by the current user."""
-    _assert_pin_owner(pin_id, owner, db)
+    """Return all media for a pin accessible to the current user."""
+    _assert_pin_access(pin_id, owner, db)
     return db.query(Media).filter(Media.pin_id == pin_id).all()
 
 

@@ -1,9 +1,10 @@
-﻿"""
+"""
 Pydantic schemas for media.
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 from typing import Optional
 from datetime import datetime
+from app.schemas.types import UTCDateTime
 import uuid
 
 
@@ -17,8 +18,13 @@ class MediaResponse(BaseModel):
     mime_type: str
     file_size: int
     thumbnail_path: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
+
+    @computed_field
+    @property
+    def url(self) -> str:
+        return f"/uploads/{self.file_path}"
 
     model_config = {"from_attributes": True}
 
