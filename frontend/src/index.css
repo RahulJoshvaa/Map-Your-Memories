@@ -1,0 +1,212 @@
+@import "tailwindcss";
+
+@theme {
+  --font-chunky: 'Fredoka', cursive, sans-serif;
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6, .font-chunky {
+  font-family: 'Fredoka', cursive, sans-serif !important;
+  letter-spacing: -0.01em;
+}
+
+/* ========================================================
+   GLOBAL CUSTOM SCROLLBAR (Sleek, rounded, theme-aware)
+   Replaces default Windows scrollbars across all scroll containers
+   ======================================================== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(26, 44, 53, 0.25) transparent;
+}
+
+.dark * {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+/* Chrome, Edge, Safari WebKit scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(26, 44, 53, 0.2);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease-in-out;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(26, 44, 53, 0.45);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.38);
+}
+
+/* 3D chunky tactile buttons like Chunky Duck */
+.btn-3d-yellow {
+  background-color: #ffb72b;
+  color: #1a2c35;
+  border: 3px solid #1a2c35;
+  box-shadow: 0 6px 0 0 #a35d10, 0 6px 0 3px #1a2c35;
+  transition: all 0.12s ease-in-out;
+}
+
+.btn-3d-yellow:hover {
+  background-color: #ffc44d;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 0 0 #a35d10, 0 8px 0 3px #1a2c35;
+}
+
+.btn-3d-yellow:active {
+  transform: translateY(6px);
+  box-shadow: 0 0 0 0 #a35d10, 0 0 0 3px #1a2c35;
+}
+
+.btn-3d-teal {
+  background-color: #02a896;
+  color: #ffffff;
+  border: 3px solid #1a2c35;
+  box-shadow: 0 6px 0 0 #076159, 0 6px 0 3px #1a2c35;
+  transition: all 0.12s ease-in-out;
+}
+
+.btn-3d-teal:hover {
+  background-color: #0fbba8;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 0 0 #076159, 0 8px 0 3px #1a2c35;
+}
+
+.btn-3d-teal:active {
+  transform: translateY(6px);
+  box-shadow: 0 0 0 0 #076159, 0 0 0 3px #1a2c35;
+}
+
+.btn-3d-white {
+  background-color: #ffffff;
+  color: #1a2c35;
+  border: 3px solid #1a2c35;
+  box-shadow: 0 6px 0 0 #cbd5e1, 0 6px 0 3px #1a2c35;
+  transition: all 0.12s ease-in-out;
+}
+
+.btn-3d-white:hover {
+  background-color: #f8fafc;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 0 0 #cbd5e1, 0 8px 0 3px #1a2c35;
+}
+
+.btn-3d-white:active {
+  transform: translateY(6px);
+  box-shadow: 0 0 0 0 #cbd5e1, 0 0 0 3px #1a2c35;
+}
+
+/* 3D chunky cards and elements */
+.card-3d-light {
+  background-color: #ffffff;
+  border: 3.5px solid #1a2c35;
+  box-shadow: 0 10px 0 0 #d97706, 0 10px 0 3.5px #1a2c35;
+}
+
+.card-3d-dark {
+  background-color: #0d292e;
+  border: 3.5px solid #1a2c35;
+  box-shadow: 0 10px 0 0 #044b4c, 0 10px 0 3.5px #1a2c35;
+}
+
+/* Float and Bob Animations */
+@keyframes bob-slow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(1deg);
+  }
+}
+
+@keyframes bob-reverse {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(8px) rotate(-1.5deg);
+  }
+}
+
+@keyframes float-cloud {
+  0%, 100% {
+    transform: translateX(0px);
+  }
+  50% {
+    transform: translateX(12px);
+  }
+}
+
+.animate-bob {
+  animation: bob-slow 4.5s ease-in-out infinite;
+}
+
+.animate-bob-reverse {
+  animation: bob-reverse 5s ease-in-out infinite;
+}
+
+.animate-cloud {
+  animation: float-cloud 8s ease-in-out infinite;
+}
+
+/* ========================================================
+   SMOOTH TRANSITIONS (Pages, Sections, Panels)
+   ======================================================== */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-enter {
+  animation: pageEnter 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Mapbox GL overrides to match app font */
+.mapboxgl-ctrl button {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
+}
+
+.mapboxgl-popup-content {
+  border-radius: 16px !important;
+  border: 3px solid #1a2c35 !important;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
+  padding: 12px 16px !important;
+}
