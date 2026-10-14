@@ -1,31 +1,23 @@
-"""
+﻿"""
 Password hashing and JWT utilities.
-Uses bcrypt directly (compatible with bcrypt>=4) instead of passlib,
-which has a known incompatibility with bcrypt 5.x.
 """
 from datetime import datetime, timedelta
 from typing import Optional
-import bcrypt
+from passlib.context import CryptContext
 from jose import JWTError, jwt
 from app.config import settings
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def hash_password(plain_password: str) -> str:
     """Hash a plain-text password using bcrypt."""
-    password_bytes = plain_password.encode("utf-8")
-    salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password_bytes, salt)
-    return hashed.decode("utf-8")
+    return pwd_context.hash(plain_password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain-text password against a bcrypt hash."""
-    try:
-        password_bytes = plain_password.encode("utf-8")
-        hash_bytes = hashed_password.encode("utf-8")
-        return bcrypt.checkpw(password_bytes, hash_bytes)
-    except Exception:
-        return False
+    return pwd_context.verify(plain_password, hashed_password)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

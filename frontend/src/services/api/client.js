@@ -1,10 +1,9 @@
-/**
+﻿/**
  * Base API client for Map Your Memories backend.
  * Centralizes all fetch() calls, auth token injection, and error handling.
  */
 
-const defaultHost = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${defaultHost}:8000`;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 /**
  * Retrieve stored auth token from localStorage.

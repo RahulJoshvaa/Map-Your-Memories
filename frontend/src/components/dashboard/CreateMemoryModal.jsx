@@ -12,41 +12,9 @@ import {
   Users, 
   Plus, 
   MousePointerClick, 
-  Trash2,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  Shield,
-  Eye,
-  Edit3,
+  Trash2 
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { lookupUserByEmail } from '../../services/notificationsService';
-
-// Permission levels for collaborators
-const PERMISSION_LEVELS = [
-  {
-    value: 'Viewer',
-    label: 'Viewer',
-    icon: Eye,
-    desc: 'Can view memory, media, and location only',
-    color: 'text-sky-500',
-  },
-  {
-    value: 'Editor',
-    label: 'Editor',
-    icon: Edit3,
-    desc: 'Can upload media and comment on memories',
-    color: 'text-[#02a896]',
-  },
-  {
-    value: 'Admin',
-    label: 'Admin',
-    icon: Shield,
-    desc: 'Can edit details and manage collaborators',
-    color: 'text-[#ffb72b]',
-  },
-];
 
 export const CreateMemoryModal = ({
   isOpen,
@@ -67,20 +35,21 @@ export const CreateMemoryModal = ({
   const [latitude, setLatitude] = useState(selectedMapCoords ? selectedMapCoords.lat.toString() : '11.4102');
   const [longitude, setLongitude] = useState(selectedMapCoords ? selectedMapCoords.lng.toString() : '76.6950');
   
+  // Date range state
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [tags, setTags] = useState('');
+  const [tags, setTags] = useState('Travel, Vacation');
   
-  // Real Uploaded File Objects state
-  const [uploadedFiles, setUploadedFiles] = useState([]);
+  // Universal Upload Files state (Any type: image, video, audio, documents, etc.)
+  const [uploadedFiles, setUploadedFiles] = useState([
+    { id: 'f-1', name: 'sunset_over_hills.jpg', type: 'image', size: '3.4 MB' },
+    { id: 'f-2', name: 'nilgiri_toy_train.mov', type: 'video', size: '14.2 MB' },
+    { id: 'f-3', name: 'steam_whistle_audio.mp3', type: 'audio', size: '2.1 MB' },
+  ]);
 
-  // Collaborators state — each item: { email, name, role, validated: true }
-  const [collaborators, setCollaborators] = useState([]);
+  // Collaborators state
+  const [collaborators, setCollaborators] = useState(['arjun@travel.io']);
   const [collaboratorInput, setCollaboratorInput] = useState('');
-  const [collaboratorRole, setCollaboratorRole] = useState('Editor');
-  const [collaboratorValidating, setCollaboratorValidating] = useState(false);
-  const [collaboratorValidationMsg, setCollaboratorValidationMsg] = useState('');
-  const [collaboratorValidationStatus, setCollaboratorValidationStatus] = useState(''); // 'ok' | 'error' | ''
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -90,17 +59,13 @@ export const CreateMemoryModal = ({
     if (selectedMapCoords) {
       setLatitude(selectedMapCoords.lat.toString());
       setLongitude(selectedMapCoords.lng.toString());
-      if (selectedMapCoords.name) {
-        setLocationName(selectedMapCoords.name);
-      } else if (!locationName || locationName.startsWith('Location (')) {
-        setLocationName(`Location (${selectedMapCoords.lat}, ${selectedMapCoords.lng})`);
-      }
+      setLocationName(`Location (${selectedMapCoords.lat}, ${selectedMapCoords.lng})`);
     }
   }, [selectedMapCoords]);
 
   if (!isOpen) return null;
 
-  // Handle native file upload
+  // Handle native file upload of anything (images, videos, audio, pdf, etc.)
   const handleNativeFileUpload = (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -117,7 +82,6 @@ export const CreateMemoryModal = ({
 
       return {
         id: `f-${Date.now()}-${Math.random()}`,
-        file,
         name: file.name,
         type: detectedType,
         size: formattedSize,
@@ -132,61 +96,17 @@ export const CreateMemoryModal = ({
     setUploadedFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
-  // Clear validation state when input changes
-  const handleCollaboratorInputChange = (e) => {
-    setCollaboratorInput(e.target.value);
-    setCollaboratorValidationMsg('');
-    setCollaboratorValidationStatus('');
-  };
-
-  // Validate + add collaborator
-  const handleAddCollaborator = async (e) => {
+  const handleAddCollaborator = (e) => {
     e.preventDefault();
-    const email = collaboratorInput.trim();
-    if (!email) return;
-
-    // Duplicate check locally first
-    if (collaborators.some((c) => c.email.toLowerCase() === email.toLowerCase())) {
-      setCollaboratorValidationMsg('This person is already added.');
-      setCollaboratorValidationStatus('error');
-      return;
+    if (!collaboratorInput.trim()) return;
+    if (!collaborators.includes(collaboratorInput.trim())) {
+      setCollaborators((prev) => [...prev, collaboratorInput.trim()]);
     }
-
-    setCollaboratorValidating(true);
-    setCollaboratorValidationMsg('Checking...');
-    setCollaboratorValidationStatus('');
-
-    try {
-      // Hit /api/auth/lookup-user to verify the email exists
-      const foundUser = await lookupUserByEmail(email);
-      // Success: add to collaborators list
-      setCollaborators((prev) => [
-        ...prev,
-        { email: foundUser.email, name: foundUser.name, role: collaboratorRole, validated: true },
-      ]);
-      setCollaboratorInput('');
-      setCollaboratorValidationMsg(`✓ ${foundUser.name} added as ${collaboratorRole}`);
-      setCollaboratorValidationStatus('ok');
-      setTimeout(() => {
-        setCollaboratorValidationMsg('');
-        setCollaboratorValidationStatus('');
-      }, 3000);
-    } catch (err) {
-      setCollaboratorValidationMsg(err?.message || 'User not found. They must register first.');
-      setCollaboratorValidationStatus('error');
-    } finally {
-      setCollaboratorValidating(false);
-    }
+    setCollaboratorInput('');
   };
 
   const handleRemoveCollaborator = (email) => {
-    setCollaborators((prev) => prev.filter((c) => c.email !== email));
-  };
-
-  const handleChangeCollaboratorRole = (email, newRole) => {
-    setCollaborators((prev) =>
-      prev.map((c) => (c.email === email ? { ...c, role: newRole } : c))
-    );
+    setCollaborators((prev) => prev.filter((c) => c !== email));
   };
 
   const handleSubmit = async (e) => {
@@ -204,20 +124,32 @@ export const CreateMemoryModal = ({
     setIsSubmitting(true);
 
     try {
-      const rawFiles = uploadedFiles.map((f) => f.file).filter(Boolean);
-      const displayDate = startDate === endDate ? startDate : `${startDate} - ${endDate}`;
+      const photosCount = uploadedFiles.filter((f) => f.type === 'image').length || 1;
+      const videosCount = uploadedFiles.filter((f) => f.type === 'video').length || 0;
+      const audioCount = uploadedFiles.filter((f) => f.type === 'audio').length || 0;
+
+      const displayDate = startDate === endDate 
+        ? startDate 
+        : `${startDate} to ${endDate}`;
 
       await onCreate({
-        title: title.trim(),
-        description: description.trim(),
+        title,
+        description,
         locationName,
         latitude: parseFloat(latitude),
         longitude: parseFloat(longitude),
         date: startDate,
         dateRange: displayDate,
         tags,
-        files: rawFiles,
-        collaborators: collaborators.map((c) => ({ name: c.name, email: c.email, role: c.role })),
+        collaborators: [
+          { name: 'Rahul Verma', role: 'Owner' },
+          ...collaborators.map((c) => ({ name: c.split('@')[0], role: 'Editor' }))
+        ],
+        mediaCount: {
+          photos: photosCount,
+          videos: videosCount,
+          audios: audioCount,
+        },
       });
       onClose();
     } catch (err) {
@@ -226,8 +158,6 @@ export const CreateMemoryModal = ({
       setIsSubmitting(false);
     }
   };
-
-  const permInfo = PERMISSION_LEVELS.find((p) => p.value === collaboratorRole);
 
   return (
     <div 
@@ -319,11 +249,11 @@ export const CreateMemoryModal = ({
             />
           </div>
 
-          {/* Location Name & Geographic Coordinates */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
+          {/* Location Selection via Map */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold">
-                Location Name & Coordinates
+                Geographic Coordinates
               </label>
               <button
                 type="button"
@@ -335,46 +265,29 @@ export const CreateMemoryModal = ({
               </button>
             </div>
 
-            <div>
-              <span className="text-[11px] opacity-70 block mb-1">
-                Name of Place / Landmark
-              </span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Fort Kochi Beach, Ooty Tea Garden"
-                  value={locationName}
-                  onChange={(e) => setLocationName(e.target.value)}
-                  className={`flex-1 py-2 px-3 rounded-xl border-2 border-[#1a2c35] font-medium text-xs sm:text-sm outline-none transition-all
-                    ${
-                      isDark
-                        ? 'bg-[#0a2327] text-white focus:border-[#ffb72b]'
-                        : 'bg-[#faf8f5] text-[#1a2c35] focus:border-[#02a896]'
-                    }
-                  `}
-                />
-                <button
-                  type="button"
-                  onClick={onStartMapPick}
-                  className="px-3 py-2 rounded-xl btn-3d-yellow text-xs font-semibold cursor-pointer shrink-0"
-                >
-                  Pick on Map
-                </button>
-              </div>
-            </div>
-
-            <div className={`p-2 px-3 rounded-xl border border-[#1a2c35]/30 flex items-center justify-between text-[11px]
-              ${isDark ? 'bg-[#0a2327]/60 text-neutral-300' : 'bg-[#faf8f5] text-[#1a2c35]/80'}
+            <div className={`p-2.5 rounded-xl border-2 border-[#1a2c35] flex items-center justify-between gap-2
+              ${isDark ? 'bg-[#0a2327]' : 'bg-[#faf8f5]'}
             `}>
-              <span className="font-medium">Selected Coordinates:</span>
-              <span className="font-mono text-[10px] font-bold">
-                {latitude}, {longitude}
-              </span>
+              <div className="min-w-0">
+                <div className="text-xs font-medium truncate">
+                  {locationName}
+                </div>
+                <div className="text-[10px] opacity-60">
+                  {latitude}, {longitude}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={onStartMapPick}
+                className="px-2.5 py-1 rounded-lg border border-[#1a2c35] text-xs font-medium bg-white text-[#1a2c35] hover:bg-neutral-100 transition-colors cursor-pointer shrink-0"
+              >
+                Pick on Map
+              </button>
             </div>
           </div>
 
-          {/* DATE RANGE */}
+          {/* DATE RANGE (From Date → To Date) */}
           <div className="space-y-1.5 pt-1 border-t border-[#1a2c35]/15 dark:border-[#1a2c35]">
             <label className="text-xs font-semibold flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-[#02a896]" />
@@ -412,7 +325,7 @@ export const CreateMemoryModal = ({
             </div>
           </div>
 
-          {/* UPLOAD MEDIA */}
+          {/* UPLOAD ANYTHING (No restrictive dropdown - native file selector + drag/drop area) */}
           <div className="space-y-2 pt-1 border-t border-[#1a2c35]/15 dark:border-[#1a2c35]">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold flex items-center gap-1.5">
@@ -424,6 +337,7 @@ export const CreateMemoryModal = ({
               </span>
             </div>
 
+            {/* Hidden Native File Input */}
             <input
               ref={fileInputRef}
               type="file"
@@ -432,6 +346,7 @@ export const CreateMemoryModal = ({
               className="hidden"
             />
 
+            {/* Direct Click-to-Upload Dropzone */}
             <div
               onClick={() => fileInputRef.current && fileInputRef.current.click()}
               className={`p-3.5 rounded-xl border-2 border-dashed border-[#1a2c35] text-center cursor-pointer transition-colors
@@ -451,6 +366,7 @@ export const CreateMemoryModal = ({
               </p>
             </div>
 
+            {/* Uploaded Files Chips */}
             {uploadedFiles.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {uploadedFiles.map((file) => (
@@ -478,8 +394,8 @@ export const CreateMemoryModal = ({
             )}
           </div>
 
-          {/* ADD COLLABORATORS — with validation + role picker */}
-          <div className="space-y-2.5 pt-1 border-t border-[#1a2c35]/15 dark:border-[#1a2c35]">
+          {/* ADD COLLABORATORS */}
+          <div className="space-y-2 pt-1 border-t border-[#1a2c35]/15 dark:border-[#1a2c35]">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-[#ffb72b]" />
@@ -490,138 +406,42 @@ export const CreateMemoryModal = ({
               </span>
             </div>
 
-            {/* Role picker */}
-            <div className="grid grid-cols-3 gap-1.5">
-              {PERMISSION_LEVELS.map((perm) => {
-                const Icon = perm.icon;
-                const isActive = collaboratorRole === perm.value;
-                return (
-                  <button
-                    key={perm.value}
-                    type="button"
-                    onClick={() => setCollaboratorRole(perm.value)}
-                    className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 text-center transition-all cursor-pointer
-                      ${
-                        isActive
-                          ? isDark
-                            ? 'border-[#ffb72b] bg-[#ffb72b]/10'
-                            : 'border-[#1a2c35] bg-[#fffae8]'
-                          : isDark
-                          ? 'border-[#1a2c35]/40 hover:border-[#1a2c35] bg-[#0a2327]/50'
-                          : 'border-[#1a2c35]/20 hover:border-[#1a2c35]/60 bg-[#faf8f5]'
-                      }
-                    `}
-                  >
-                    <Icon className={`w-3.5 h-3.5 ${perm.color}`} />
-                    <span className={`text-[10px] font-bold ${isActive ? '' : 'opacity-70'}`}>
-                      {perm.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Permission description */}
-            {permInfo && (
-              <p className="text-[10px] opacity-60 font-medium px-1">
-                {permInfo.desc}
-              </p>
-            )}
-
-            {/* Email input + invite button */}
             <div className="flex items-center gap-2">
               <input
                 type="email"
                 placeholder="friend@email.com"
                 value={collaboratorInput}
-                onChange={handleCollaboratorInputChange}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddCollaborator(e)}
-                disabled={collaboratorValidating}
-                className={`flex-1 py-1.5 px-3 rounded-xl border-2 border-[#1a2c35] text-xs font-normal outline-none transition-all
-                  ${
-                    collaboratorValidationStatus === 'error'
-                      ? 'border-rose-500'
-                      : collaboratorValidationStatus === 'ok'
-                      ? 'border-[#02a896]'
-                      : ''
-                  }
+                onChange={(e) => setCollaboratorInput(e.target.value)}
+                className={`flex-1 py-1.5 px-3 rounded-xl border-2 border-[#1a2c35] text-xs font-normal outline-none
                   ${isDark ? 'bg-[#0a2327] text-white' : 'bg-[#faf8f5] text-[#1a2c35]'}`}
               />
               <button
                 type="button"
                 onClick={handleAddCollaborator}
-                disabled={collaboratorValidating || !collaboratorInput.trim()}
-                className="px-3 py-1.5 rounded-xl border-2 border-[#1a2c35] bg-[#ffb72b] text-[#1a2c35] hover:bg-[#ffc44d] text-xs font-bold transition-colors cursor-pointer shrink-0 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1"
+                className="px-3 py-1.5 rounded-xl border-2 border-[#1a2c35] bg-[#ffb72b] text-[#1a2c35] hover:bg-[#ffc44d] text-xs font-bold transition-colors cursor-pointer shrink-0"
               >
-                {collaboratorValidating ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <Plus className="w-3 h-3" />
-                )}
                 Invite
               </button>
             </div>
 
-            {/* Validation feedback */}
-            {collaboratorValidationMsg && (
-              <div className={`flex items-center gap-1.5 text-[11px] font-medium px-1
-                ${collaboratorValidationStatus === 'ok' ? 'text-[#02a896]' : 'text-rose-500'}
-              `}>
-                {collaboratorValidationStatus === 'ok'
-                  ? <CheckCircle className="w-3.5 h-3.5 shrink-0" />
-                  : <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                }
-                {collaboratorValidationMsg}
-              </div>
-            )}
-
-            {/* Collaborator Pills with inline role changer */}
-            {collaborators.length > 0 && (
-              <div className="space-y-1.5 pt-0.5">
-                {collaborators.map((collab) => {
-                  const RoleIcon = PERMISSION_LEVELS.find((p) => p.value === collab.role)?.icon || Eye;
-                  return (
-                    <div
-                      key={collab.email}
-                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-[#1a2c35] 
-                        ${isDark ? 'bg-[#0a2327]' : 'bg-white'}`}
-                    >
-                      {/* Avatar initial */}
-                      <div className="w-6 h-6 rounded-lg bg-[#02a896] border border-[#1a2c35] flex items-center justify-center text-[10px] font-bold text-white shrink-0">
-                        {collab.name.charAt(0).toUpperCase()}
-                      </div>
-
-                      {/* Name + email */}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold truncate">{collab.name}</div>
-                        <div className="text-[10px] opacity-60 truncate">{collab.email}</div>
-                      </div>
-
-                      {/* Inline role selector */}
-                      <select
-                        value={collab.role}
-                        onChange={(e) => handleChangeCollaboratorRole(collab.email, e.target.value)}
-                        className={`text-[10px] font-bold px-2 py-1 rounded-lg border border-[#1a2c35] outline-none cursor-pointer
-                          ${isDark ? 'bg-[#0f4347] text-white' : 'bg-[#fffae8] text-[#1a2c35]'}`}
-                      >
-                        {PERMISSION_LEVELS.map((p) => (
-                          <option key={p.value} value={p.value}>{p.label}</option>
-                        ))}
-                      </select>
-
-                      {/* Remove */}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCollaborator(collab.email)}
-                        className="p-1 rounded-lg hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {/* Collaborators Pills */}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {collaborators.map((email) => (
+                <div
+                  key={email}
+                  className="px-2.5 py-0.5 rounded-lg border border-[#1a2c35] bg-white dark:bg-[#062024] text-xs font-medium flex items-center gap-1.5"
+                >
+                  <span>{email}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveCollaborator(email)}
+                    className="hover:text-rose-500 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Tags */}
@@ -639,7 +459,7 @@ export const CreateMemoryModal = ({
             />
           </div>
 
-          {/* Action Buttons */}
+          {/* Clear, Solid, Accessible Action Buttons (No cut-off, fully legible) */}
           <div className="pt-4 flex items-center justify-end gap-3 border-t border-[#1a2c35]/15 dark:border-[#1a2c35]">
             <button
               type="button"
@@ -659,7 +479,7 @@ export const CreateMemoryModal = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-2.5 rounded-xl border-2 border-[#1a2c35] bg-[#ffb72b] text-[#1a2c35] hover:bg-[#ffc44d] active:scale-95 shadow-[0_2px_0_0_#a35d10] font-bold text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-70"
+              className="px-6 py-2.5 rounded-xl border-2 border-[#1a2c35] bg-[#ffb72b] text-[#1a2c35] hover:bg-[#ffc44d] active:scale-95 shadow-[0_2px_0_0_#a35d10] font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
             >
               {isSubmitting ? 'Creating...' : 'Create Pin'}
             </button>

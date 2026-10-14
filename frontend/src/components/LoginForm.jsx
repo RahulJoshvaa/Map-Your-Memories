@@ -70,9 +70,9 @@ export const LoginForm = ({ onNavigateRegister, onLoginSuccess }) => {
         
         // Navigate to dashboard after brief success animation
         setTimeout(() => {
-          if (onLoginSuccess) onLoginSuccess(response.user);
+          if (onLoginSuccess) onLoginSuccess();
           else setLoginSuccess(false);
-        }, 1000);
+        }, 1200);
       }
     } catch (err) {
       setErrors((prev) => ({

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Search, 
   Bell, 
@@ -9,48 +9,11 @@ import {
   Share2,
   Star,
   CheckCircle2,
-  SlidersHorizontal,
-  UserMinus,
-  AlertCircle,
-  RefreshCw,
-  UserPlus,
-  Check,
+  SlidersHorizontal
 } from 'lucide-react';
 import { ThemeToggle } from '../ThemeToggle';
 import { useTheme } from '../../context/ThemeContext';
-import { authService } from '../../services/auth/authService';
-import { notificationsService } from '../../services/notificationsService';
-
-// Relative time formatter
-function timeAgo(dateStr) {
-  const now = Date.now();
-  // Timestamps are UTC; if one arrives without an offset, don't let the browser treat it as local time
-  const hasZone = /(Z|[+-]\d{2}:?\d{2})$/.test(dateStr);
-  const past = new Date(hasZone ? dateStr : `${dateStr}Z`).getTime();
-  const diffMs = now - past;
-  const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 10) return 'just now';
-  if (diffSec < 60) return `${diffSec}s ago`;
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDay = Math.floor(diffHr / 24);
-  return `${diffDay}d ago`;
-}
-
-// Icon by notification type
-function NotifIcon({ type }) {
-  const base = 'w-3.5 h-3.5';
-  if (type === 'share') return <Share2 className={`${base} text-[#02a896]`} />;
-  if (type === 'collaboration_invite') return <UserPlus className={`${base} text-[#02a896]`} />;
-  if (type === 'invite_accepted') return <CheckCircle2 className={`${base} text-[#02a896]`} />;
-  if (type === 'invite_rejected') return <UserMinus className={`${base} text-rose-500`} />;
-  if (type === 'collaborator_removed') return <UserMinus className={`${base} text-rose-500`} />;
-  if (type === 'pin_updated') return <CheckCircle2 className={`${base} text-[#02a896]`} />;
-  if (type === 'pin_deleted') return <AlertCircle className={`${base} text-rose-500`} />;
-  return <Star className={`${base} text-[#ffb72b] fill-[#ffb72b]`} />;
-}
+import { CURRENT_USER } from '../../data/mockMemories';
 
 export const TopBar = ({
   searchQuery = '',
@@ -59,85 +22,14 @@ export const TopBar = ({
   onQuickResultSelect,
   searchResults = [],
   activeTab = 'home',
-  user = null,
-  onInviteResponded,
 }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  const activeUser = user || authService.getCachedUser() || { name: 'Explorer' };
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const searchInputRef = useRef(null);
   const notifRef = useRef(null);
-
-  // ─── Real notification state ──────────────────────────────────────────────
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [notifLoading, setNotifLoading] = useState(false);
-  const [notifError, setNotifError] = useState('');
-
-  const loadNotifications = useCallback(async () => {
-    setNotifLoading(true);
-    setNotifError('');
-    try {
-      const res = await notificationsService.getNotifications();
-      setNotifications(res?.notifications || []);
-      setUnreadCount(res?.unread_count ?? 0);
-    } catch (err) {
-      setNotifError('Could not load notifications.');
-    } finally {
-      setNotifLoading(false);
-    }
-  }, []);
-
-  // Load on mount + poll every 30s
-  useEffect(() => {
-    loadNotifications();
-    const interval = setInterval(loadNotifications, 30_000);
-    return () => clearInterval(interval);
-  }, [loadNotifications]);
-
-  // Load when dropdown opens
-  const handleToggleNotifications = async () => {
-    setShowNotifications((prev) => !prev);
-    if (!showNotifications) {
-      await loadNotifications();
-    }
-  };
-
-  const handleMarkRead = async (notifId) => {
-    try {
-      await notificationsService.markRead(notifId);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notifId ? { ...n, is_read: true } : n))
-      );
-      setUnreadCount((c) => Math.max(0, c - 1));
-    } catch {}
-  };
-
-  // Accept / decline a collaboration invite
-  const [respondingId, setRespondingId] = useState(null);
-  const handleRespondToInvite = async (n, accept) => {
-    setRespondingId(n.id);
-    try {
-      await notificationsService.respondToInvite(n.pin_id, accept);
-      if (onInviteResponded) onInviteResponded(n.pin_id, accept);
-    } catch (err) {
-      setNotifError(err?.message || 'Could not respond to the invitation.');
-    } finally {
-      setRespondingId(null);
-      await loadNotifications();
-    }
-  };
-
-  const handleMarkAllRead = async () => {
-    try {
-      await notificationsService.markAllRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-      setUnreadCount(0);
-    } catch {}
-  };
 
   // Close popups on click outside
   useEffect(() => {
@@ -149,6 +41,33 @@ export const TopBar = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const mockNotifications = [
+    {
+      id: 'n1',
+      title: 'Memory Shared With You',
+      desc: 'Arjun shared "Goa Coastal Villa Escape" with Editor access.',
+      time: '15m ago',
+      unread: true,
+      iconType: 'share',
+    },
+    {
+      id: 'n2',
+      title: 'Favorite Pinned',
+      desc: 'You starred "Marina Beach Kite Festival".',
+      time: '3h ago',
+      unread: false,
+      iconType: 'star',
+    },
+    {
+      id: 'n3',
+      title: 'Geographic Vault Synced',
+      desc: '11 memory markers verified across South India.',
+      time: '1d ago',
+      unread: false,
+      iconType: 'check',
+    },
+  ];
 
   return (
     <header
@@ -294,18 +213,16 @@ export const TopBar = ({
         <div className="relative" ref={notifRef}>
           <button
             type="button"
-            onClick={handleToggleNotifications}
+            onClick={() => setShowNotifications(!showNotifications)}
             aria-label="View notifications"
             className="w-9 h-9 rounded-xl border-2 border-[#1a2c35] btn-3d-white flex items-center justify-center relative cursor-pointer"
           >
             <Bell className="w-4 h-4 text-[#1a2c35] stroke-2" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-[#ffb72b] border border-[#1a2c35] text-[8px] font-black text-[#1a2c35] items-center justify-center">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
+            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-[#ffb72b] border border-[#1a2c35] text-[8px] font-black text-[#1a2c35] items-center justify-center">
+                1
               </span>
-            )}
+            </span>
           </button>
 
           {/* Notifications Dropdown */}
@@ -319,124 +236,48 @@ export const TopBar = ({
                 }
               `}
             >
-              {/* Header */}
               <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#1a2c35]/20 dark:border-[#1a2c35]">
-                <h4 className="font-chunky font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
-                  Notifications
-                  {unreadCount > 0 && (
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#ffb72b] text-[#1a2c35] text-[9px] font-black leading-none">
-                      {unreadCount}
-                    </span>
-                  )}
-                </h4>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={loadNotifications}
-                    className="p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-[#0f4347] transition-colors cursor-pointer"
-                    title="Refresh"
-                  >
-                    <RefreshCw className={`w-3 h-3 opacity-60 ${notifLoading ? 'animate-spin' : ''}`} />
-                  </button>
-                  {unreadCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleMarkAllRead}
-                      className="text-[10px] font-medium text-[#02a896] dark:text-[#ffb72b] cursor-pointer hover:underline"
-                    >
-                      Mark all as read
-                    </button>
-                  )}
-                </div>
+                <h4 className="font-chunky font-bold text-xs uppercase tracking-wider">Notifications</h4>
+                <span className="text-[10px] font-medium text-[#02a896] dark:text-[#ffb72b] cursor-pointer">
+                  Mark all as read
+                </span>
               </div>
 
-              {/* Body */}
-              {notifLoading && notifications.length === 0 ? (
-                <div className="py-6 text-center">
-                  <RefreshCw className="w-5 h-5 animate-spin mx-auto opacity-40 mb-2" />
-                  <p className="text-[11px] opacity-60">Loading...</p>
-                </div>
-              ) : notifError ? (
-                <div className="py-4 text-center text-[11px] text-rose-500">
-                  {notifError}
-                </div>
-              ) : notifications.length === 0 ? (
-                <div className="py-6 text-center">
-                  <Bell className="w-6 h-6 mx-auto opacity-30 mb-2" />
-                  <p className="text-[11px] opacity-60 font-medium">No notifications yet</p>
-                  <p className="text-[10px] opacity-40 mt-0.5">
-                    You'll see updates when memories are shared with you.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-0.5">
-                  {notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => !n.is_read && handleMarkRead(n.id)}
-                      onKeyDown={(e) => e.key === 'Enter' && !n.is_read && handleMarkRead(n.id)}
-                      className={`w-full p-2.5 rounded-xl border transition-all flex items-start gap-2.5 text-left cursor-pointer
-                        ${
-                          !n.is_read
-                            ? isDark
-                              ? 'bg-[#0f4347] border-[#ffb72b] hover:bg-[#134044]'
-                              : 'bg-[#fffae8] border-[#1a2c35] hover:bg-[#fff5d4]'
-                            : isDark
-                            ? 'bg-[#0a2327] border-[#1a2c35]/40 opacity-70'
-                            : 'bg-[#faf8f5] border-[#1a2c35]/20 opacity-70'
-                        }
-                      `}
-                    >
-                      <div className="p-1.5 rounded-lg border border-[#1a2c35] bg-white dark:bg-[#0a2327] text-[#1a2c35] dark:text-white shrink-0">
-                        <NotifIcon type={n.type} />
+              <div className="space-y-2">
+                {mockNotifications.map((n) => (
+                  <div
+                    key={n.id}
+                    className={`p-2.5 rounded-xl border transition-all flex items-start gap-2.5
+                      ${
+                        n.unread
+                          ? isDark
+                            ? 'bg-[#0f4347] border-[#ffb72b]'
+                            : 'bg-[#fffae8] border-[#1a2c35]'
+                          : isDark
+                          ? 'bg-[#0a2327] border-[#1a2c35]/40 opacity-80'
+                          : 'bg-[#faf8f5] border-[#1a2c35]/20 opacity-80'
+                      }
+                    `}
+                  >
+                    <div className="p-1.5 rounded-lg border border-[#1a2c35] bg-white dark:bg-[#0a2327] text-[#1a2c35] dark:text-white shrink-0">
+                      {n.iconType === 'share' && <Share2 className="w-3.5 h-3.5 text-[#02a896]" />}
+                      {n.iconType === 'star' && <Star className="w-3.5 h-3.5 text-[#ffb72b] fill-[#ffb72b]" />}
+                      {n.iconType === 'check' && <CheckCircle2 className="w-3.5 h-3.5 text-[#02a896]" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-chunky font-bold text-xs truncate">
+                        {n.title}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-chunky font-bold text-xs truncate flex items-center gap-1.5">
-                          {n.title}
-                          {!n.is_read && (
-                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#ffb72b] shrink-0" />
-                          )}
-                        </div>
-                        <div className="text-[11px] font-normal opacity-75 leading-snug mt-0.5 line-clamp-2">
-                          {n.body}
-                        </div>
-                        {n.type === 'collaboration_invite' && n.invite_status === 'pending' && (
-                          <div className="flex items-center gap-1.5 mt-2">
-                            <button
-                              type="button"
-                              disabled={respondingId === n.id}
-                              onClick={(e) => { e.stopPropagation(); handleRespondToInvite(n, true); }}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#1a2c35] bg-[#02a896] text-white text-[10px] font-bold cursor-pointer hover:brightness-110 disabled:opacity-50 disabled:cursor-wait"
-                            >
-                              <Check className="w-3 h-3" />
-                              Accept
-                            </button>
-                            <button
-                              type="button"
-                              disabled={respondingId === n.id}
-                              onClick={(e) => { e.stopPropagation(); handleRespondToInvite(n, false); }}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#1a2c35] bg-white text-[#1a2c35] dark:bg-[#0a2327] dark:text-white text-[10px] font-bold cursor-pointer hover:border-rose-500 hover:text-rose-500 disabled:opacity-50 disabled:cursor-wait"
-                            >
-                              <X className="w-3 h-3" />
-                              Decline
-                            </button>
-                          </div>
-                        )}
-                        {n.type === 'collaboration_invite' && n.invite_status && n.invite_status !== 'pending' && (
-                          <div className={`text-[10px] font-semibold mt-1 ${n.invite_status === 'accepted' ? 'text-[#02a896]' : 'text-rose-500'}`}>
-                            {{ accepted: 'You accepted this invite', rejected: 'You declined this invite', cancelled: 'Invite was cancelled' }[n.invite_status]}
-                          </div>
-                        )}
-                        <div className="text-[9px] font-medium opacity-50 mt-1">
-                          {timeAgo(n.created_at)}
-                        </div>
+                      <div className="text-[11px] font-normal opacity-75 leading-snug mt-0.5">
+                        {n.desc}
+                      </div>
+                      <div className="text-[9px] font-medium opacity-50 mt-1">
+                        {n.time}
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -449,11 +290,11 @@ export const TopBar = ({
         {/* User Avatar */}
         <div className="flex items-center gap-2 pl-1 sm:pl-2 border-l border-[#1a2c35]/20 dark:border-[#1a2c35]">
           <div className="w-8 h-8 rounded-xl bg-[#02a896] border-2 border-[#1a2c35] flex items-center justify-center text-xs font-bold text-white shadow-xs shrink-0">
-            {(activeUser.name || 'E').charAt(0).toUpperCase()}
+            {CURRENT_USER.name.charAt(0)}
           </div>
           <div className="hidden xl:flex flex-col">
             <span className="font-chunky font-bold text-xs text-[#1a2c35] dark:text-white leading-tight">
-              {activeUser.name}
+              {CURRENT_USER.name}
             </span>
             <span className="text-[10px] font-medium text-[#02a896] dark:text-[#ffb72b]">
               Explorer

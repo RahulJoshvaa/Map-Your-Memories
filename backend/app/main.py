@@ -1,4 +1,4 @@
-"""
+﻿"""
 Map Your Memories - FastAPI Application Entry Point
 
 Architecture:
@@ -19,7 +19,7 @@ from pathlib import Path
 import logging
 
 from app.config import settings
-from app.routers import auth, pins, media, notifications
+from app.routers import auth, pins, media
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -36,47 +36,16 @@ app = FastAPI(
 # ─── CORS ────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-    ],
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$",
+    allow_origins=settings.get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
 )
 
 # ─── Routers ─────────────────────────────────────────────────────────────────
 app.include_router(auth.router)
 app.include_router(pins.router)
 app.include_router(media.router)
-app.include_router(notifications.router)
-
-# ─── Database Initialization ──────────────────────────────────────────────────
-@app.on_event("startup")
-def on_startup():
-    from app.database.database import Base, engine
-    from app.database import models  # noqa: F401
-    Base.metadata.create_all(bind=engine)
-    _migrate_collaborator_status(engine)
-
-
-def _migrate_collaborator_status(engine):
-    """Add pin_collaborators.status to databases created before invitations existed.
-    Existing collaborators are treated as already accepted."""
-    from sqlalchemy import inspect, text
-    columns = {c["name"] for c in inspect(engine).get_columns("pin_collaborators")}
-    if "status" not in columns:
-        with engine.begin() as conn:
-            conn.execute(text(
-                "ALTER TABLE pin_collaborators "
-                "ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'accepted'"
-            ))
 
 # ─── Static Files (uploaded media) ───────────────────────────────────────────
 upload_dir = Path(settings.UPLOAD_DIR).resolve()
