@@ -1,4 +1,4 @@
-﻿"""
+"""
 Application configuration loaded from environment variables.
 """
 from pydantic_settings import BaseSettings
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
 
     # CORS
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
 
     # App
     APP_ENV: str = "development"
