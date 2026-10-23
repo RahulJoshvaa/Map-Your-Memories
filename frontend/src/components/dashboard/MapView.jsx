@@ -5,8 +5,9 @@ import {
   RotateCcw, 
   Layers, 
   MapPin, 
-  Users, 
-  Star
+  Users,
+  Star,
+  Globe2,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { groupMemoriesByLocation } from '../../services/memoryService';
@@ -35,6 +36,79 @@ const TILE_STYLES = {
   },
 };
 
+const GLOBE_PREF_KEY = 'mym_globe_mode';
+const GLOBE_ZOOM = 1.8;
+const SPIN_MAX_ZOOM = 5; // globe auto-rotates only while zoomed out
+const SECONDS_PER_REVOLUTION = 150;
+const FOCUS_PITCH_3D = 55; // tilt when flying to a memory in 3D mode
+
+function readGlobePref() {
+  try {
+    return localStorage.getItem(GLOBE_PREF_KEY) === 'on';
+  } catch {
+    return false;
+  }
+}
+
+function saveGlobePref(on) {
+  try {
+    localStorage.setItem(GLOBE_PREF_KEY, on ? 'on' : 'off');
+  } catch {
+    // Storage unavailable (private mode); the toggle still works for this session.
+  }
+}
+
+/**
+ * Turn 3D mode on or off for the current style: globe projection, atmosphere,
+ * terrain and extruded buildings. Called again after every style change,
+ * because setStyle() drops custom sources, layers, fog and terrain.
+ */
+function applyGlobeMode(map, on, darkStyle) {
+  if (!on) {
+    map.setProjection('mercator');
+    map.setFog(null);
+    map.setTerrain(null);
+    if (map.getLayer('mym-3d-buildings')) map.removeLayer('mym-3d-buildings');
+    return;
+  }
+
+  map.setProjection('globe');
+  map.setFog(darkStyle
+    ? { color: 'rgb(13, 41, 46)', 'high-color': 'rgb(2, 60, 70)', 'horizon-blend': 0.03,
+        'space-color': 'rgb(4, 10, 14)', 'star-intensity': 0.7 }
+    : { color: 'rgb(220, 236, 245)', 'high-color': 'rgb(36, 112, 200)', 'horizon-blend': 0.03,
+        'space-color': 'rgb(10, 18, 36)', 'star-intensity': 0.55 });
+
+  if (!map.getSource('mapbox-dem')) {
+    map.addSource('mapbox-dem', {
+      type: 'raster-dem',
+      url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+      tileSize: 512,
+      maxzoom: 14,
+    });
+  }
+  map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.4 });
+
+  // 3D buildings from the style's own vector tiles, drawn under the labels.
+  if (map.getSource('composite') && !map.getLayer('mym-3d-buildings')) {
+    const labelLayer = map.getStyle().layers.find((l) => l.type === 'symbol' && l.layout?.['text-field']);
+    map.addLayer({
+      id: 'mym-3d-buildings',
+      source: 'composite',
+      'source-layer': 'building',
+      filter: ['==', 'extrude', 'true'],
+      type: 'fill-extrusion',
+      minzoom: 14,
+      paint: {
+        'fill-extrusion-color': darkStyle ? '#1d4b52' : '#d9cfc0',
+        'fill-extrusion-height': ['get', 'height'],
+        'fill-extrusion-base': ['get', 'min_height'],
+        'fill-extrusion-opacity': 0.75,
+      },
+    }, labelLayer?.id);
+  }
+}
+
 export const MapView = ({
   memories = [],
   selectedMemory,
@@ -57,6 +131,11 @@ export const MapView = ({
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentStyleKey, setCurrentStyleKey] = useState(isDark ? 'dark' : 'streets');
   const [showStyleMenu, setShowStyleMenu] = useState(false);
+  const [globeMode, setGlobeMode] = useState(readGlobePref);
+  const globeModeRef = useRef(globeMode); // read inside map event handlers
+  globeModeRef.current = globeMode;
+  const styleKeyRef = useRef(currentStyleKey);
+  styleKeyRef.current = currentStyleKey;
 
   // Group co-located memories (e.g. Ooty with multiple memories)
   const clusters = useMemo(() => {
@@ -103,13 +182,18 @@ mapboxgl.accessToken = token;
     // Add navigation controls (Zoom + Compass)
     const navControl = new mapboxgl.NavigationControl({
       showCompass: true,
-      visualizePitch: false,
+      visualizePitch: true,
     });
     map.addControl(navControl, 'top-right');
 
     map.on('load', () => {
       setMapLoaded(true);
       map.resize();
+    });
+
+    // Re-apply 3D mode whenever a style finishes loading (first load and basemap switches).
+    map.on('style.load', () => {
+      applyGlobeMode(map, globeModeRef.current, styleKeyRef.current === 'dark');
     });
 
     mapRef.current = map;
@@ -133,12 +217,72 @@ mapboxgl.accessToken = token;
     }
   }, [currentStyleKey, mapLoaded]);
 
-  // Handle external focusCoords (e.g. from search selection or "Locate on Map")
+  // 3D globe toggle: apply settings, move the camera, and auto-rotate while zoomed out.
+  const globeInitRef = useRef(true);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    applyGlobeMode(map, globeMode, currentStyleKey === 'dark');
+
+    // Skip the camera move on first load so a restored preference doesn't jump the view.
+    if (globeInitRef.current) {
+      globeInitRef.current = false;
+    } else if (globeMode) {
+      map.flyTo({ center: [map.getCenter().lng, 20], zoom: GLOBE_ZOOM, pitch: 0, bearing: 0, speed: 1.1 });
+    } else {
+      map.flyTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM, pitch: 0, bearing: 0, speed: 1.2 });
+    }
+    if (!globeMode) return;
+
+    let userInteracting = false;
+    const spin = () => {
+      if (userInteracting || map.getZoom() >= SPIN_MAX_ZOOM) return;
+      const center = map.getCenter();
+      center.lng -= 360 / SECONDS_PER_REVOLUTION;
+      map.easeTo({ center, duration: 1000, easing: (n) => n });
+    };
+    const pause = () => { userInteracting = true; };
+    const resume = () => { userInteracting = false; spin(); };
+    const events = ['mouseup', 'touchend', 'dragend', 'pitchend', 'rotateend'];
+
+    map.on('mousedown', pause);
+    map.on('touchstart', pause);
+    events.forEach((e) => map.on(e, resume));
+    map.on('moveend', spin);
+    spin();
+
+    return () => {
+      map.off('mousedown', pause);
+      map.off('touchstart', pause);
+      events.forEach((e) => map.off(e, resume));
+      map.off('moveend', spin);
+      map.stop();
+    };
+  }, [globeMode, mapLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleGlobe = () => {
+    const next = !globeMode;
+    saveGlobePref(next);
+    setGlobeMode(next);
+  };
+
+  // Handle external focusCoords (e.g. from search selection or "Locate on Map").
+  // { bounds: [[minLng, minLat], [maxLng, maxLat]] } fits several pins (AI search results).
   useEffect(() => {
     if (!mapRef.current || !focusCoords) return;
+    if (focusCoords.bounds) {
+      mapRef.current.fitBounds(focusCoords.bounds, {
+        padding: 80,
+        maxZoom: 12.5,
+        duration: 1400,
+        essential: true,
+      });
+      return;
+    }
     mapRef.current.flyTo({
       center: [focusCoords.lng, focusCoords.lat],
       zoom: 12.5,
+      pitch: globeModeRef.current ? FOCUS_PITCH_3D : 0,
       speed: 1.4,
       curve: 1.42,
       essential: true,
@@ -317,6 +461,7 @@ mapboxgl.accessToken = token;
         mapRef.current.flyTo({
           center: [cluster.longitude, cluster.latitude],
           zoom: Math.max(mapRef.current.getZoom(), 11),
+          pitch: globeModeRef.current ? FOCUS_PITCH_3D : mapRef.current.getPitch(),
           speed: 1.2,
         });
 
@@ -350,8 +495,8 @@ mapboxgl.accessToken = token;
   const resetCamera = () => {
     if (!mapRef.current) return;
     mapRef.current.flyTo({
-      center: DEFAULT_CENTER,
-      zoom: DEFAULT_ZOOM,
+      center: globeMode ? [mapRef.current.getCenter().lng, 20] : DEFAULT_CENTER,
+      zoom: globeMode ? GLOBE_ZOOM : DEFAULT_ZOOM,
       pitch: 0,
       bearing: 0,
       speed: 1.2,
@@ -417,6 +562,19 @@ mapboxgl.accessToken = token;
         >
           <RotateCcw className="w-3.5 h-3.5 stroke-2" />
           <span>Reset</span>
+        </button>
+
+        {/* 3D Globe Toggle */}
+        <button
+          type="button"
+          onClick={toggleGlobe}
+          aria-pressed={globeMode}
+          title={globeMode ? 'Switch to flat map' : 'Switch to 3D globe with terrain'}
+          className={`px-3 py-1.5 rounded-xl border-2 border-[#1a2c35] text-xs font-medium flex items-center gap-1.5 cursor-pointer
+            ${globeMode ? 'btn-3d-yellow text-[#1a2c35] font-semibold' : 'btn-3d-white'}`}
+        >
+          <Globe2 className={`w-3.5 h-3.5 stroke-2 ${globeMode ? 'text-[#1a2c35]' : 'text-[#02a896]'}`} />
+          <span>{globeMode ? '3D Globe' : '2D Map'}</span>
         </button>
 
         {/* Style Selector */}

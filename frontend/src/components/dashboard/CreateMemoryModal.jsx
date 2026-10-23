@@ -19,6 +19,8 @@ import {
   Shield,
   Eye,
   Edit3,
+  Lock,
+  Globe,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { lookupUserByEmail } from '../../services/notificationsService';
@@ -48,6 +50,12 @@ const PERMISSION_LEVELS = [
   },
 ];
 
+// Who can see the pin
+const VISIBILITY_OPTIONS = [
+  { value: 'private', label: 'Private', icon: Lock, desc: 'Only you and invited collaborators' },
+  { value: 'public', label: 'Public', icon: Globe, desc: 'Marked as public for anyone' },
+];
+
 export const CreateMemoryModal = ({
   isOpen,
   onClose,
@@ -70,6 +78,7 @@ export const CreateMemoryModal = ({
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [tags, setTags] = useState('');
+  const [visibility, setVisibility] = useState('private');
   
   // Real Uploaded File Objects state
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -216,6 +225,7 @@ export const CreateMemoryModal = ({
         date: startDate,
         dateRange: displayDate,
         tags,
+        visibility,
         files: rawFiles,
         collaborators: collaborators.map((c) => ({ name: c.name, email: c.email, role: c.role })),
       });
@@ -637,6 +647,43 @@ export const CreateMemoryModal = ({
               className={`w-full py-1.5 px-3 rounded-xl border-2 border-[#1a2c35] font-medium text-xs outline-none
                 ${isDark ? 'bg-[#0a2327] text-white' : 'bg-[#faf8f5] text-[#1a2c35]'}`}
             />
+          </div>
+
+          {/* Visibility */}
+          <div className="pt-1 border-t border-[#1a2c35]/15 dark:border-[#1a2c35]">
+            <label className="text-xs font-semibold block mb-1">
+              Visibility
+            </label>
+            <div role="radiogroup" aria-label="Visibility" className="grid grid-cols-2 gap-2">
+              {VISIBILITY_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                const selected = visibility === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setVisibility(opt.value)}
+                    className={`flex items-start gap-2 p-2 px-3 rounded-xl border-2 text-left transition-all cursor-pointer active:scale-95
+                      ${
+                        selected
+                          ? 'border-[#1a2c35] bg-[#ffb72b] text-[#1a2c35] shadow-[0_2px_0_0_#a35d10]'
+                          : isDark
+                            ? 'border-[#1a2c35] bg-[#0a2327] text-white hover:bg-[#14373d]'
+                            : 'border-[#1a2c35] bg-[#faf8f5] text-[#1a2c35] hover:bg-neutral-100'
+                      }
+                    `}
+                  >
+                    <Icon className="w-4 h-4 mt-0.5 shrink-0 stroke-2.5" />
+                    <span>
+                      <span className="block text-xs font-bold">{opt.label}</span>
+                      <span className={`block text-[11px] ${selected ? 'opacity-80' : 'opacity-70'}`}>{opt.desc}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Action Buttons */}
