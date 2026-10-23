@@ -33,6 +33,7 @@ import {
   fetchPinById
 } from '../services/memoryService';
 import { API_BASE_URL } from '../services/api/client';
+import { authService } from '../services/auth/authService';
 
 export const MemoryDetailPage = ({
   memory,
@@ -88,15 +89,19 @@ export const MemoryDetailPage = ({
 
   // ─── Permission Gates ───────────────────────────────────────────────────────
   // OWNER: full control | ADMIN: edit+upload, manage collaborators, no pin delete
-  // EDITOR: upload media only | VIEWER: read-only
+  // EDITOR: upload photos only, delete own uploads | VIEWER: read-only
+  // (The backend enforces the same rules; these only shape the UI.)
   const perm = (memory.permission || 'VIEWER').toUpperCase();
   const isOwner   = perm === 'OWNER';
   const isAdmin   = perm === 'ADMIN'  || isOwner;
   const isEditor  = perm === 'EDITOR' || isAdmin;
+  const photosOnly = perm === 'EDITOR';
+  const currentUserId = authService.getCachedUser()?.id;
   const canDeletePin        = isOwner;            // Only owner can delete the whole pin
   const canEditDetails      = isAdmin;            // Owner + Admin can edit pin details
-  const canUploadMedia      = isEditor;           // Owner + Admin + Editor can upload
-  const canDeleteMedia      = isAdmin;            // Owner + Admin can delete media
+  const canUploadMedia      = isEditor;           // Owner + Admin + Editor (photos only) can upload
+  const canDeleteMedia = (item) =>                // Owner + Admin: any; Editor: own uploads
+    isAdmin || (photosOnly && item.uploaded_by === currentUserId);
   const canManageCollabs    = isAdmin;            // Owner + Admin can add/remove collaborators
 
   // Filter media based on tab
@@ -113,6 +118,12 @@ export const MemoryDetailPage = ({
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
+
+    if (photosOnly && files.some((f) => !f.type.startsWith('image/'))) {
+      setUploadError('As an editor you can upload photos only.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
 
     setIsUploading(true);
     setUploadError('');
@@ -430,6 +441,7 @@ export const MemoryDetailPage = ({
                 ref={fileInputRef}
                 type="file"
                 multiple
+                accept={photosOnly ? 'image/*' : undefined}
                 onChange={handleFileUpload}
                 className="hidden"
               />
@@ -441,7 +453,7 @@ export const MemoryDetailPage = ({
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl btn-3d-yellow font-semibold text-xs tracking-wider uppercase cursor-pointer"
                 >
                   <Upload className="w-3.5 h-3.5 stroke-2.5" />
-                  <span>{isUploading ? 'Uploading...' : 'Add Media'}</span>
+                  <span>{isUploading ? 'Uploading...' : photosOnly ? 'Add Photos' : 'Add Media'}</span>
                 </button>
               ) : (
                 <span className="px-2.5 py-1 rounded-lg border border-[#1a2c35]/30 text-[10px] font-medium opacity-60">
@@ -476,14 +488,16 @@ export const MemoryDetailPage = ({
               <p className="text-xs font-normal opacity-70 mb-3">
                 No media uploaded yet.
               </p>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                className="px-4 py-2 rounded-xl btn-3d-yellow text-xs font-semibold uppercase tracking-wider cursor-pointer inline-flex items-center gap-1.5"
-              >
-                <Plus className="w-4 h-4 stroke-2" />
-                <span>Upload Media</span>
-              </button>
+              {canUploadMedia && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                  className="px-4 py-2 rounded-xl btn-3d-yellow text-xs font-semibold uppercase tracking-wider cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4 stroke-2" />
+                  <span>{photosOnly ? 'Upload Photos' : 'Upload Media'}</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -492,7 +506,7 @@ export const MemoryDetailPage = ({
                 const isVid = item.file_type === 'video';
                 const isAud = item.file_type === 'audio';
                 const isDoc = item.file_type === 'document';
-                const mediaUrl = getMediaUrl(item.file_path);
+                const mediaUrl = getMediaUrl(item.url || item.file_path);
 
                 return (
                   <div
@@ -505,8 +519,8 @@ export const MemoryDetailPage = ({
                       }
                     `}
                   >
-                    {/* Delete media icon button — ADMIN+ only */}
-                    {canDeleteMedia && (
+                    {/* Delete media icon button — ADMIN+ any file, EDITOR own uploads */}
+                    {canDeleteMedia(item) && (
                       <button
                         type="button"
                         title="Delete media file"

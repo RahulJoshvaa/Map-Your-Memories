@@ -2,7 +2,7 @@
 Media router: upload, list, and delete media attached to pins.
 """
 import uuid
-from fastapi import APIRouter, Depends, UploadFile, File, status
+from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, status
 from sqlalchemy.orm import Session
 from app.database.database import get_db
 from app.schemas.media import MediaResponse, MediaListResponse
@@ -21,13 +21,14 @@ router = APIRouter(tags=["media"])
 )
 def upload_pin_media(
     pin_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     storage: StorageService = Depends(get_storage_service),
 ):
     """Upload a file to a pin. Only the pin owner can upload."""
-    return upload_media(pin_id, file, current_user, db, storage)
+    return upload_media(pin_id, file, current_user, db, storage, background_tasks)
 
 
 @router.get("/api/pins/{pin_id}/media", response_model=MediaListResponse)
