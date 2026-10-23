@@ -2,6 +2,7 @@
 Pydantic schemas for media.
 """
 from pydantic import BaseModel, computed_field
+from app.services.storage_service import get_storage_service
 from typing import Optional
 from datetime import datetime
 from app.schemas.types import UTCDateTime
@@ -24,7 +25,7 @@ class MediaResponse(BaseModel):
     @computed_field
     @property
     def url(self) -> str:
-        return f"/uploads/{self.file_path}"
+        return get_storage_service().get_file_url(self.file_path)
 
     model_config = {"from_attributes": True}
 

@@ -2,10 +2,22 @@
 Pydantic schemas for memory pins.
 """
 from pydantic import BaseModel, field_validator
+from app.services.storage_service import get_storage_service
 from typing import Optional, List
 from datetime import datetime
 from app.schemas.types import UTCDateTime
 import uuid
+
+VISIBILITY_VALUES = {"private", "public", "shared"}
+
+
+def _check_visibility(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return v
+    v = v.strip().lower()
+    if v not in VISIBILITY_VALUES:
+        raise ValueError("Visibility must be 'private', 'public' or 'shared'")
+    return v
 
 
 class PinCreateRequest(BaseModel):
@@ -40,6 +52,11 @@ class PinCreateRequest(BaseModel):
             raise ValueError("Longitude must be between -180 and 180")
         return v
 
+    @field_validator("visibility")
+    @classmethod
+    def valid_visibility(cls, v: Optional[str]) -> Optional[str]:
+        return _check_visibility(v)
+
 
 class PinUpdateRequest(BaseModel):
     title: Optional[str] = None
@@ -49,11 +66,17 @@ class PinUpdateRequest(BaseModel):
     visibility: Optional[str] = None
     tags: Optional[str] = None
 
+    @field_validator("visibility")
+    @classmethod
+    def valid_visibility(cls, v: Optional[str]) -> Optional[str]:
+        return _check_visibility(v)
+
 
 from pydantic import BaseModel, field_validator, computed_field
 
 class MediaSummary(BaseModel):
     id: uuid.UUID
+    uploaded_by: Optional[uuid.UUID] = None  # editors may delete only their own uploads
     file_name: str
     file_type: str
     mime_type: str
@@ -64,7 +87,7 @@ class MediaSummary(BaseModel):
     @computed_field
     @property
     def url(self) -> str:
-        return f"/uploads/{self.file_path}"
+        return get_storage_service().get_file_url(self.file_path)
 
     model_config = {"from_attributes": True}
 
