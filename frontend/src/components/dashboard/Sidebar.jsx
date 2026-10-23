@@ -5,6 +5,7 @@ import {
   Users, 
   Star, 
   Clock, 
+  History,
   Plus, 
   Settings, 
   X,
@@ -37,6 +38,12 @@ export const Sidebar = ({
       id: 'home',
       label: 'Home',
       icon: Home,
+      badge: null,
+    },
+    {
+      id: 'timeline',
+      label: 'Timeline',
+      icon: History,
       badge: null,
     },
     {

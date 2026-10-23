@@ -6,6 +6,7 @@ import { MyPinsView } from './MyPinsView';
 import { SharedWithMeView } from './SharedWithMeView';
 import { FavoritesView } from './FavoritesView';
 import { RecentView } from './RecentView';
+import { TimelineView } from './TimelineView';
 import { MemoryDetailPage } from './MemoryDetailPage';
 import { CreateMemoryModal } from '../components/dashboard/CreateMemoryModal';
 import { SettingsModal } from '../components/dashboard/SettingsModal';
@@ -21,13 +22,14 @@ import {
   getSharedWithMe,
   getFavoriteMemories
 } from '../services/memoryService';
+import { aiSearchService } from '../services/search/aiSearchService';
 
 export const Dashboard = ({ currentUser, onSignOut }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
   // Navigation & View state
-  const [activeTab, setActiveTab] = useState('home'); // 'home' | 'mypins' | 'shared' | 'favorites' | 'recent' | 'memory-detail'
+  const [activeTab, setActiveTab] = useState('home'); // 'home' | 'timeline' | 'mypins' | 'shared' | 'favorites' | 'recent' | 'memory-detail'
   const [previousTab, setPreviousTab] = useState('home');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -35,6 +37,11 @@ export const Dashboard = ({ currentUser, onSignOut }) => {
   const [memories, setMemories] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
+
+  // AI natural-language search (runs on Enter in the search bar)
+  const [aiSearch, setAiSearch] = useState(null); // { query, filters, source, results }
+  const [aiSearchLoading, setAiSearchLoading] = useState(false);
+  const [aiSearchError, setAiSearchError] = useState('');
 
   // Map & Pin Interaction state
   const [selectedMemory, setSelectedMemory] = useState(null);
@@ -60,10 +67,18 @@ export const Dashboard = ({ currentUser, onSignOut }) => {
     loadData();
   }, [loadData]);
 
-  // Client-side search results (ready for future FastAPI semantic search endpoint)
+  // AI results apply while the search box still holds the query that produced them
+  const normalizedQuery = searchQuery.trim().replace(/\s+/g, ' ');
+  const isAiSearchActive = Boolean(aiSearch && aiSearch.query === normalizedQuery);
+
+  // Client-side search as you type; AI search results once Enter is pressed
   const searchResults = useMemo(() => {
+    if (isAiSearchActive) {
+      // Prefer the loaded copy so favorites and other local state stay in sync
+      return aiSearch.results.map((r) => memories.find((m) => m.id === r.id) || r);
+    }
     return filterMemoriesByQuery(searchQuery, memories);
-  }, [searchQuery, memories]);
+  }, [isAiSearchActive, aiSearch, searchQuery, memories]);
 
   // Filtered memories for map display
   const mapMemories = useMemo(() => {
@@ -117,6 +132,45 @@ export const Dashboard = ({ currentUser, onSignOut }) => {
   const handleQuickResultSelect = useCallback((memory) => {
     handleLocateOnMap(memory);
   }, [handleLocateOnMap]);
+
+  const handleSearchChange = useCallback((value) => {
+    setSearchQuery(value);
+    setAiSearchError('');
+  }, []);
+
+  const handleAiSearch = useCallback(async (query) => {
+    const q = (query || '').trim();
+    if (!q) return;
+    setAiSearchLoading(true);
+    setAiSearchError('');
+    try {
+      const result = await aiSearchService.search(q);
+      setAiSearch(result);
+      setActiveTab('home');
+      setSelectedMemory(null);
+      setSelectedCluster(null);
+
+      // Frame the matching pins on the map
+      const pts = result.results;
+      if (pts.length === 1) {
+        setFocusCoords({ lat: pts[0].latitude, lng: pts[0].longitude });
+      } else if (pts.length > 1) {
+        const lngs = pts.map((p) => p.longitude);
+        const lats = pts.map((p) => p.latitude);
+        setFocusCoords({
+          bounds: [
+            [Math.min(...lngs), Math.min(...lats)],
+            [Math.max(...lngs), Math.max(...lats)],
+          ],
+        });
+      }
+    } catch (err) {
+      setAiSearch(null);
+      setAiSearchError(err?.message || 'AI search failed. Please try again.');
+    } finally {
+      setAiSearchLoading(false);
+    }
+  }, []);
 
   const handleToggleFavorite = async (id) => {
     await toggleFavoriteMemory(id);
@@ -224,7 +278,11 @@ export const Dashboard = ({ currentUser, onSignOut }) => {
         {/* 2. TOP BAR */}
         <TopBar
           searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          onSearchChange={handleSearchChange}
+          onAiSearch={handleAiSearch}
+          aiSearch={isAiSearchActive ? aiSearch : null}
+          aiSearchLoading={aiSearchLoading}
+          aiSearchError={aiSearchError}
           onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
           onQuickResultSelect={handleQuickResultSelect}
           searchResults={searchResults}
@@ -255,6 +313,14 @@ export const Dashboard = ({ currentUser, onSignOut }) => {
               isLocationPicker={isPickingLocationOnMap}
               pickedLocation={pickedLocation}
               onLocationPicked={handleLocationPicked}
+            />
+          )}
+
+          {activeTab === 'timeline' && (
+            <TimelineView
+              memories={memories}
+              onLocateOnMap={handleLocateOnMap}
+              onViewDetails={handleViewMemoryDetail}
             />
           )}
 
