@@ -5,6 +5,7 @@ from typing import Optional, List
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
 from fastapi import HTTPException, status
+from app.ai import content as content_index
 from app.database.models.memory_pin import MemoryPin
 from app.database.models.user import User
 from app.schemas.pin import PinCreateRequest, PinUpdateRequest, PinResponse
@@ -139,6 +140,7 @@ def delete_pin(pin_id: uuid.UUID, owner: User, db: Session, storage: Optional[St
         for media_item in pin.media:
             if media_item.file_path:
                 storage.delete_file(media_item.file_path)
+    content_index.remove_pin(pin.id)
 
     db.delete(pin)
     db.commit()

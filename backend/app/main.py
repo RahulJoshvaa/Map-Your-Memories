@@ -9,7 +9,8 @@ Routers:
     /api/pins  - Memory pin CRUD
     /api/pins/{pin_id}/media - Media upload/list
     /api/media/{media_id}    - Media delete
-    /uploads/* - Static file serving for uploaded media
+    /api/search/ai - AI natural-language search (Groq)
+    /uploads/* - Static file serving for uploaded media (STORAGE_BACKEND=local)
 """
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,7 +20,7 @@ from pathlib import Path
 import logging
 
 from app.config import settings
-from app.routers import auth, pins, media, notifications
+from app.routers import auth, pins, media, notifications, search
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -56,6 +57,7 @@ app.include_router(auth.router)
 app.include_router(pins.router)
 app.include_router(media.router)
 app.include_router(notifications.router)
+app.include_router(search.router)
 
 # ─── Database Initialization ──────────────────────────────────────────────────
 @app.on_event("startup")
