@@ -17,3 +17,7 @@ dist/
 /uploads/
 /test_uploads/
 *.db
+
+# Local vector DB and downloaded embedding models
+/vector_db/
+/models/
