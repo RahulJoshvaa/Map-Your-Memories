@@ -15,11 +15,15 @@ import {
   RefreshCw,
   UserPlus,
   Check,
+  Sparkles,
+  Loader2,
+  FileText,
 } from 'lucide-react';
 import { ThemeToggle } from '../ThemeToggle';
 import { useTheme } from '../../context/ThemeContext';
 import { authService } from '../../services/auth/authService';
 import { notificationsService } from '../../services/notificationsService';
+import { describeFilters } from '../../services/search/aiSearchService';
 
 // Relative time formatter
 function timeAgo(dateStr) {
@@ -61,6 +65,10 @@ export const TopBar = ({
   activeTab = 'home',
   user = null,
   onInviteResponded,
+  onAiSearch,
+  aiSearch = null,
+  aiSearchLoading = false,
+  aiSearchError = '',
 }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -189,6 +197,15 @@ export const TopBar = ({
               setShowSearchDropdown(true);
             }}
             onFocus={() => setShowSearchDropdown(true)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && onAiSearch && searchQuery.trim() && !aiSearchLoading) {
+                e.preventDefault();
+                setShowSearchDropdown(true);
+                onAiSearch(searchQuery);
+              } else if (e.key === 'Escape') {
+                setShowSearchDropdown(false);
+              }
+            }}
             placeholder="Search your memories..."
             className={`w-full py-2 sm:py-2.5 pl-10 pr-9 rounded-xl font-medium text-xs sm:text-sm border-2.5 border-[#1a2c35] outline-none transition-all
               ${
@@ -224,9 +241,48 @@ export const TopBar = ({
               }
             `}
           >
-            <div className="px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider opacity-60 flex items-center justify-between">
-              <span>Matching Memories ({searchResults.length})</span>
+            <div className="px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider flex items-center justify-between gap-2">
+              <span className="opacity-60 flex items-center gap-1">
+                {aiSearch && <Sparkles className="w-3 h-3 text-[#02a896] dark:text-[#ffb72b]" />}
+                {aiSearch ? 'AI Matches' : 'Matching Memories'} ({searchResults.length})
+              </span>
+              {onAiSearch && !aiSearch && !aiSearchLoading && (
+                <span className="normal-case tracking-normal opacity-60 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" />
+                  Press Enter for AI search
+                </span>
+              )}
+              {aiSearchLoading && (
+                <span className="normal-case tracking-normal opacity-70 flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Searching with AI...
+                </span>
+              )}
             </div>
+
+            {/* How the AI understood the query */}
+            {aiSearch && (
+              <div className="px-2.5 pb-1.5 flex flex-wrap gap-1">
+                {describeFilters(aiSearch.filters).length === 0 ? (
+                  <span className="text-[11px] opacity-60">No specific filters found — showing all your memories.</span>
+                ) : (
+                  describeFilters(aiSearch.filters).map((chip) => (
+                    <span
+                      key={chip}
+                      className="text-[10px] font-medium px-2 py-0.5 rounded-lg border border-[#1a2c35] bg-[#fffae8] text-[#1a2c35] dark:bg-[#062024] dark:text-neutral-200"
+                    >
+                      {chip}
+                    </span>
+                  ))
+                )}
+              </div>
+            )}
+
+            {aiSearchError && (
+              <div className="mx-1 mb-1 p-2 rounded-xl border border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-[11px] font-medium">
+                {aiSearchError}
+              </div>
+            )}
 
             {searchResults.length === 0 ? (
               <div className="p-4 text-center">
@@ -234,7 +290,9 @@ export const TopBar = ({
                   No memories found for "{searchQuery}".
                 </p>
                 <p className="text-[11px] opacity-60 mt-1">
-                  Search by title, description, location name, or tags.
+                  {aiSearch
+                    ? 'Try a different date range, place, or keyword.'
+                    : 'Search by title, description, location name, or tags — or press Enter to search with AI, e.g. "memories from 19 October to 20 October".'}
                 </p>
               </div>
             ) : (
@@ -274,6 +332,15 @@ export const TopBar = ({
                             {mem.date}
                           </span>
                         </div>
+                        {aiSearch?.contentMatches?.[mem.id] && (
+                          <div className="mt-0.5 text-[11px] opacity-80 flex items-start gap-1 font-normal">
+                            <FileText className="w-3 h-3 mt-0.5 shrink-0 text-[#02a896] dark:text-[#ffb72b]" />
+                            <span className="line-clamp-2">
+                              <span className="font-semibold">{aiSearch.contentMatches[mem.id].fileName}:</span>{' '}
+                              {aiSearch.contentMatches[mem.id].snippet}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -282,6 +349,11 @@ export const TopBar = ({
                     </span>
                   </button>
                 ))}
+                {aiSearch && searchResults.length > 5 && (
+                  <p className="px-2.5 pt-1 text-[11px] opacity-60">
+                    +{searchResults.length - 5} more shown on the map
+                  </p>
+                )}
               </div>
             )}
           </div>
